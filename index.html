@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>English City Builder</title>
+<style>
+  html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif;background:#222;overflow:hidden}
+  #start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#fff;}
+  #start h1{color:#012;padding:8px 12px;background:#fff;border-radius:8px;margin-bottom:12px}
+  #start button{padding:12px 20px;font-size:18px;border-radius:8px;border:0;background:#0036ff;color:#fff;cursor:pointer}
+
+  #app{display:none;height:100vh;width:100vw;position:relative;overflow:hidden}
+  #map{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;width:100vw;height:100vh}
+
+  .marker{position:absolute;transform:translate(-50%,-100%);font-size:48px;cursor:pointer;user-select:none;text-shadow:0 4px 10px rgba(0,0,0,.4)}
+  .building{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
+
+  #modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}
+  .card{background:#fff;padding:18px;border-radius:10px;min-width:320px;max-width:90%}
+  .choices{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .choice{padding:10px;border-radius:8px;border:1px solid #ddd;cursor:pointer;background:#fafafa}
+  .choice:hover{background:#eef8ff}
+  #hud{position:fixed;left:12px;top:12px;background:rgba(255,255,255,0.9);padding:10px;border-radius:8px}
+  #reset{margin-left:8px;background:#e33;color:#fff;border:0;padding:6px 10px;border-radius:6px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- STARTSIDE -->
+<div id="start">
+  <h1 id="title">English City Builder</h1>
+  <div style="max-width:520px;text-align:center;color:#033">Answer the questions correctly to build the city. Click Start to begin!</div>
+  <div style="height:14px"></div>
+  <button id="startBtn">Click to Start</button>
+</div>
+
+<!-- APPEN -->
+<div id="app">
+  <div id="map"></div>
+  <div id="hud">
+    <span id="hint">Guide: Click on a question marks</span>
+    <button id="reset">Reset</button>
+  </div>
+</div>
+
+<!-- QUIZ BOKS -->
+<div id="modal">
+  <div class="card">
+    <div id="qTitle" style="font-weight:700;margin-bottom:6px"></div>
+    <div id="qText" style="color:#333"></div>
+    <div class="choices" id="choices"></div>
+    <div style="height:10px"></div>
+    <div style="text-align:right"><button id="closeModal">Close</button></div>
+  </div>
+</div>
+
+<script>
+const CONFIG = {
+  backgroundUrl: "https://i.ibb.co/CKBt3rDb/Baggrund-billede.png",
+  markers: [
+ { x:456, y:164, building:"https://i.ibb.co/hJ4PVj57/Fire-station.png", size:240,
+  title:"Solve this (Verbs) to unlock Fire Station",
+  question:"Which word is an action?",
+  choices:["run","blue","big","chair"], answerIndex:0 },
+{ x:1680, y:118, building:"https://i.ibb.co/7tCVVgX9/House.png", size:200,
+  title:"Solve this Vocabulary to unlock the Family Villa",
+  question:"Which word is a place?",
+  choices:["happy","house","tall","drive"], answerIndex:1 },
+{ x:1180, y:211, building:"https://i.ibb.co/Q7S56hjC/Hospital.png", size:375,
+  title:"Solve this Adjective to unlock the local Hospital",
+  question:"How does a sick person feel?",
+  choices:["sad","sick","tall","full"], answerIndex:1 },
+{ x:406, y:568, building:"https://i.ibb.co/FqcXgPtB/School-Building.png", size:300,
+  title:"Solve this question to unlock the School",
+  question:"What do you use to write?",
+  choices:["pen","foot","apple","bag"], answerIndex:0 },
+{ x:1009, y:373, building:"https://i.ibb.co/C3JhYFqQ/Office-Building.png", size:295,
+  title:"Solve this question to unlock the Office",
+  question:"Who works in an office?",
+  choices:["doctor","office worker","driver","nurse"], answerIndex:1 },
+{ x:489, y:847, building:"https://i.ibb.co/FLxLRzm8/Police-Station.png", size:300,
+  title:"Solve this question to unlock the Police Station",
+  question:"Who helps keep people safe?",
+  choices:["police","chef","runner","painter"], answerIndex:0 },
+{ x:1135, y:822, building:"https://i.ibb.co/N2bBPRrY/Shopping-Center.png", size:300,
+  title:"Solve this Vocabulary to unlock the Shopping Center",
+  question:"What do you use to pay in a shop?",
+  choices:["money","pencil","milk","window"], answerIndex:0 },
+{ x:1748, y:596, building:"https://i.ibb.co/j9N76VMG/Apartment-Complex.png", size:300,
+  title:"Solve this Grammar question to unlock the Apartment Complex",
+  question:"Choose the correct word: 'I have ___ apple.'",
+  choices:["a","an","the","no"], answerIndex:1 },
+{ x:904, y:944, building:"https://i.ibb.co/xSXLbL19/Twin-Buildings.png", size:300,
+  title:"Solve this Adjective to unlock the Twin Buildings",
+  question:"Which word is a colour?",
+  choices:["blue","run","eat","ball"], answerIndex:0 },
+{ x:2036, y:124, building:"https://i.ibb.co/hJ4PVj57/Fire-station.png", size:300,
+  title:"Solve this (Opposites) to unlock the Fire Station",
+  question:"What is the opposite of 'big'?",
+  choices:["small","fast","cold","soft"], answerIndex:0 }
+
+  ]
+};
+
+const start = document.getElementById('start');
+const startBtn = document.getElementById('startBtn');
+const app = document.getElementById('app');
+const map = document.getElementById('map');
+const modal = document.getElementById('modal');
+const qTitle = document.getElementById('qTitle');
+const qText = document.getElementById('qText');
+const choicesDiv = document.getElementById('choices');
+const resetBtn = document.getElementById('reset');
+const hudHint = document.getElementById('hint');
+
+let audioCtx = null;
+let _ambient = null;
+
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playClick(){
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type='sine'; o.frequency.value = 1200; g.gain.value = 0.0001;
+  o.connect(g); g.connect(audioCtx.destination);
+  g.gain.exponentialRampToValueAtTime(0.08, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12);
+  o.start(); o.stop(audioCtx.currentTime + 0.13);
+}
+function playCorrect(){
+  if(!audioCtx) return;
+  const now = audioCtx.currentTime;
+  [880, 1100, 1320].forEach((f,i)=>{
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type='sine'; o.frequency.value = f; g.gain.value = 0.0001;
+    o.connect(g); g.connect(audioCtx.destination);
+    g.gain.exponentialRampToValueAtTime(0.09, now + 0.02 + i*0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.6 + i*0.02);
+    o.start(now + i*0.02); o.stop(now + 0.6 + i*0.02);
+  });
+}
+function playWrong(){
+  if(!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type='sawtooth'; o.frequency.value = 180; g.gain.value = 0.0001;
+  o.connect(g); g.connect(audioCtx.destination);
+  g.gain.exponentialRampToValueAtTime(0.05, now + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+  o.start(now); o.stop(now + 0.5);
+}
+
+function renderMarkers(){
+  map.innerHTML = '';
+  CONFIG.markers.forEach((m, i)=>{
+    const qm = document.createElement('div');
+    qm.className = 'marker';
+    qm.innerText = '❓';
+    qm.style.left = m.x + 'px';
+    qm.style.top = m.y + 'px';
+    qm.dataset.idx = i;
+    qm.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openQuiz(i);
+      playClick();
+    });
+    map.appendChild(qm);
+  });
+}
+
+function openQuiz(idx){
+  const m = CONFIG.markers[idx];
+  qTitle.innerText = m.title || 'Solve this';
+  qText.innerText = m.question || '';
+  choicesDiv.innerHTML = '';
+  m.choices.forEach((c, i)=>{
+    const d = document.createElement('div');
+    d.className = 'choice';
+    d.innerText = c;
+    d.addEventListener('click', ()=>{
+      if(i === m.answerIndex){
+        playCorrect();
+        placeBuilding(idx);
+        closeModal();
+      } else {
+        playWrong();
+        d.style.background = '#fff0f0';
+        setTimeout(()=> d.style.background = '', 300);
+      }
+    });
+    choicesDiv.appendChild(d);
+  });
+  modal.style.display = 'flex';
+}
+function closeModal(){ modal.style.display = 'none'; }
+document.getElementById('closeModal').addEventListener('click', closeModal);
+
+function placeBuilding(idx){
+  const m = CONFIG.markers[idx];
+  const qm = map.querySelector('.marker[data-idx="'+idx+'"]');
+  if(qm) qm.remove();
+  const img = document.createElement('img');
+  img.className = 'building';
+  img.src = m.building;
+  img.style.left = m.x + 'px';
+  img.style.top = m.y + 'px';
+  img.style.width = (m.size || 120) + 'px';
+  map.appendChild(img);
+  hudHint.innerText = 'Unlocked: ' + (m.title || 'building');
+}
+
+startBtn.addEventListener('click', ()=>{
+  initAudio();
+  // start baggrund lys
+  try{
+    const audio = new Audio("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+    audio.loop = true;
+    audio.volume = 0.1;
+    audio.play().catch(()=>{});
+    window._bgAudio = audio;
+  }catch(e){}
+  start.style.display = 'none';
+  app.style.display = 'block';
+  map.style.backgroundImage = `url("${CONFIG.backgroundUrl}")`;
+  renderMarkers();
+});
+
+resetBtn.addEventListener('click', ()=>{
+  // stop lyd
+  try{
+    if(window._bgAudio){window._bgAudio.pause();window._bgAudio.currentTime=0;}
+  }catch(e){}
+  map.innerHTML = '';
+  app.style.display = 'none';
+  start.style.display = 'flex';
+  hudHint.innerText = 'Click a ❓ to answer';
+});
+
+modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+</script>
+</body>
+</html>
